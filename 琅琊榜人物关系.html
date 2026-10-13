@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>琅琊榜 · 人物关系网络</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --line:#2a313c;
+    --text:#e6edf3; --muted:#8b949e;
+    --su:#2dd4bf; --royal:#fbbf24; --crown:#f87171;
+    --yu:#c084fc; --mirror:#60a5fa; --family:#f472b6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;}
+  #app{display:flex;flex-direction:column;height:100vh;}
+  header{padding:14px 20px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  header h1{margin:0;font-size:20px;letter-spacing:2px;}
+  header .sub{color:var(--muted);font-size:13px;}
+  .search{flex:1;min-width:200px;max-width:360px;margin-left:auto;}
+  .search input{width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--line);
+    background:#0b0f14;color:var(--text);font-size:14px;outline:none;}
+  .search input:focus{border-color:var(--su);}
+  #main{flex:1;display:flex;min-height:0;position:relative;}
+  #graph{flex:1;position:relative;overflow:hidden;background:
+    radial-gradient(circle at 50% 40%, #131a22 0%, #0e1116 70%);}
+  svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none;}
+  svg.pan{cursor:grabbing;}
+  .link{stroke-opacity:.4;transition:opacity .15s;}
+  .node circle{cursor:pointer;transition:opacity .15s;}
+  .node circle.base{stroke:none;}
+  .node circle.ring{stroke-width:4px;transition:stroke-width .15s;}
+  .node image{cursor:pointer;}
+  .mono{fill:#0e1116;font-weight:700;pointer-events:none;user-select:none;}
+  .node text{font-size:12px;fill:var(--text);pointer-events:none;
+    paint-order:stroke;stroke:#0e1116;stroke-width:3.5px;stroke-linejoin:round;
+    text-anchor:middle;user-select:none;}
+  .faded{opacity:.1 !important;}
+  .faded-link{opacity:.04 !important;}
+  #side{width:320px;flex:none;border-left:1px solid var(--line);
+    background:var(--panel);padding:18px;overflow-y:auto;}
+  #side h2{margin:0 0 4px;font-size:18px;}
+  #side .tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:20px;
+    margin-bottom:10px;color:#0e1116;font-weight:600;}
+  #side .role{color:var(--muted);font-size:13px;margin-bottom:12px;line-height:1.5;}
+  #side .desc{font-size:13.5px;line-height:1.7;color:#c9d1d9;}
+  #side .rels{margin-top:16px;border-top:1px solid var(--line);padding-top:12px;}
+  #side .rels h3{font-size:13px;color:var(--muted);margin:0 0 8px;letter-spacing:1px;}
+  #side .rel{font-size:13px;padding:5px 0;border-bottom:1px dashed #232a34;line-height:1.5;}
+  #side .rel b{color:#fff;}
+  #side .rel .rt{font-size:11px;padding:1px 6px;border-radius:4px;margin-right:6px;color:#0e1116;font-weight:600;}
+  .empty{color:var(--muted);font-size:13px;line-height:1.7;}
+  .legend{position:absolute;left:14px;bottom:14px;background:rgba(22,27,34,.9);
+    border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12px;
+    backdrop-filter:blur(4px);max-width:230px;}
+  .legend .grp{margin-bottom:8px;}
+  .legend .grp:last-child{margin-bottom:0;}
+  .legend .ttl{color:var(--muted);margin-bottom:5px;letter-spacing:1px;}
+  .legend .row{display:flex;align-items:center;gap:7px;margin:3px 0;}
+  .legend .dot{width:11px;height:11px;border-radius:50%;flex:none;}
+  .legend .bar{width:18px;height:3px;border-radius:2px;flex:none;}
+  .hint{position:absolute;right:14px;top:14px;color:var(--muted);font-size:11.5px;
+    background:rgba(22,27,34,.85);border:1px solid var(--line);border-radius:8px;padding:6px 10px;}
+  a.reset{color:var(--su);cursor:pointer;font-size:12px;text-decoration:underline;}
+  #sheetHandle{display:none;justify-content:center;align-items:center;height:24px;
+    color:var(--muted);font-size:20px;line-height:1;cursor:pointer;flex:none;
+    border-bottom:1px solid var(--line);user-select:none;}
+  /* ===== 手机竖版布局 ===== */
+  @media (max-width:720px){
+    header{flex-direction:column;align-items:stretch;gap:8px;padding:10px 14px;}
+    header h1{font-size:18px;}
+    header .sub{font-size:12px;}
+    .search{order:2;max-width:none;width:100%;margin-left:0;}
+    #main{flex-direction:column;}
+    #graph{flex:1;min-height:0;}
+    #side{position:absolute;left:0;right:0;bottom:0;width:100%;max-height:48%;
+      border-left:none;border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+      transform:translateY(101%);transition:transform .25s ease;z-index:6;
+      box-shadow:0 -8px 28px rgba(0,0,0,.45);}
+    #side.open{transform:translateY(0);}
+    #sheetHandle{display:flex;}
+    .legend{top:12px;left:12px;bottom:auto;max-width:150px;padding:8px 10px;font-size:11px;}
+    .legend .row{margin:2px 0;}
+    .hint{display:none;}
+    #side h2{font-size:17px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>琅琊榜</h1>
+    <span class="sub">人物关系网络 · 拖拽节点 / 悬停高亮 / 点击查看详情</span>
+    <div class="search"><input id="q" placeholder="搜索人物，如：梅长苏、靖王、夏江…" /></div>
+  </header>
+  <div id="main">
+    <div id="graph">
+      <div class="hint">滚轮缩放 · 拖动平移 · 拖拽节点</div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <aside id="side">
+      <div id="sheetHandle" onclick="resetView()">▾</div>
+      <div id="sideContent"><div class="empty">点击任意节点查看人物简介与关系。<br><br>
+      线条颜色含义：<br>🔴 血缘亲情　💗 爱情婚约<br>🟢 友情挚交　🔵 主从阵营<br>🟠 对立政敌　🟣 同谋勾结</div></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ===================== 数据 =====================
+const factions = {
+  su:{name:"江左盟 / 赤焰旧部",color:"#2dd4bf"},
+  royal:{name:"皇室",color:"#fbbf24"},
+  crown:{name:"太子党",color:"#f87171"},
+  yu:{name:"誉王党",color:"#c084fc"},
+  mirror:{name:"悬镜司",color:"#60a5fa"},
+  family:{name:"世家",color:"#f472b6"},
+};
+const nodes = [
+  {id:"sux",name:"梅长苏",f:"su",role:"江左盟宗主 · 本名林殊",desc:"赤焰军少帅林殊，十七岁遭赤焰冤案后身中火寒之毒、改容更易，以病弱谋士之身重返金陵，辅佐靖王、为赤焰旧部翻案。"},
+  {id:"feiliu",name:"飞流",f:"su",role:"护卫",desc:"被梅长苏救下的痴儿，武功极高，只听苏哥哥的话，单纯忠诚。"},
+  {id:"linchen",name:"蔺晨",f:"su",role:"琅琊阁阁主",desc:"梅长苏挚友，医术与谋略兼备，多次为苏兄化解危机。"},
+  {id:"mengzhi",name:"蒙挚",f:"su",role:"禁军大统领",desc:"赤焰旧友，看似粗豪实则精细，暗中支持梅长苏与靖王。"},
+  {id:"nihuang",name:"霓凰郡主",f:"su",role:"云南穆府",desc:"林殊青梅竹马的未婚妻，守云南边境，多年苦等林殊。"},
+  {id:"weizheng",name:"卫峥",f:"su",role:"赤焰旧将",desc:"赤焰军幸存将领，被悬镜司扣押，后被梅长苏救出。"},
+  {id:"ligang",name:"黎纲",f:"su",role:"江左盟骨干",desc:"梅长苏的左膀右臂，掌管江左盟事务。"},
+  {id:"zhenping",name:"甄平",f:"su",role:"江左盟骨干",desc:"江左盟弟子，随梅长苏出入金陵。"},
+  {id:"gongyu",name:"宫羽",f:"su",role:"妙音坊主",desc:"妙音坊主人，为梅长打碎探情报的暗线。"},
+
+  {id:"liangdi",name:"梁帝 萧选",f:"royal",role:"大梁皇帝",desc:"多疑的帝王，宠信奸佞，一手酿成赤焰冤案，晚年陷于诸子夺嫡。"},
+  {id:"jingwang",name:"靖王 萧景琰",f:"royal",role:"皇七子",desc:"林殊与蒙挚的挚友，刚直不阿，被梅长苏选中并力捧上位。"},
+  {id:"taizi",name:"太子 萧景宣",f:"royal",role:"皇长子",desc:"越贵妃之子，懦弱骄纵，倚仗谢玉与悬镜司。"},
+  {id:"yuwang",name:"誉王 萧景桓",f:"royal",role:"皇次子",desc:"表面贤德，实为滑族玲珑公主之子，与太子争储，倚重秦般若。"},
+  {id:"jiwang",name:"纪王",f:"royal",role:"皇子",desc:"梁帝之弟，圆滑知趣，常居中调和。"},
+  {id:"jingfei",name:"静妃",f:"royal",role:"靖王生母",desc:"温良隐忍，医术精湛，靖王最坚实的后盾。"},
+  {id:"yueguifei",name:"越贵妃",f:"royal",role:"太子生母",desc:"骄横受宠，太子夺嫡的靠山。"},
+  {id:"jingyang",name:"晋阳长公主",f:"royal",role:"林殊之母",desc:"梁帝之妹，下嫁林燮，赤焰案后撞柱殉情。"},
+  {id:"liyang",name:"莅阳长公主",f:"royal",role:"萧景睿之母",desc:"被迫下嫁谢玉，深知赤焰冤案内情，最终呈出绝密清单。"},
+  {id:"tingsheng",name:"萧庭生",f:"royal",role:"靖王养子",desc:"祁王遗腹子，流落掖幽庭被靖王收养，忠厚仁厚。"},
+
+  {id:"xieyu",name:"谢玉",f:"crown",role:"宁国侯",desc:"太子岳丈，与夏江合谋制造赤焰冤案，后兵权被夺、赐死。"},
+  {id:"qinbanruo",name:"秦般若",f:"yu",role:"誉王谋士",desc:"红袖招主人，誉王的智囊，工于心计。"},
+  {id:"xiajiang",name:"夏江",f:"mirror",role:"悬镜司首尊",desc:"酷戾阴狠，一手炮制并掩盖赤焰案，梅长苏死敌。"},
+  {id:"xiadong",name:"夏冬",f:"mirror",role:"悬镜司司使",desc:"夏江弟子，聂锋之妻，重情重义，最终弃暗投明。"},
+
+  {id:"yuyujin",name:"言豫津",f:"family",role:"言侯之子",desc:"风流公子，与萧景睿、梅长苏相交，爽朗重情。"},
+  {id:"yanhou",name:"言侯 言阙",f:"family",role:"大梁国柱",desc:"林燮至交，因赤焰案心灰意冷，后助靖王。"},
+  {id:"jingrui",name:"萧景睿",f:"family",role:"谢玉与莅阳之子",desc:"谦和温润的世家公子，身世成谜，重情守礼。"},
+  {id:"zhuoqingyao",name:"卓青遥",f:"family",role:"萧景睿姐夫",desc:"卓家公子，娶萧景睿之姐，沉稳可靠。"},
+  {id:"linxie",name:"林燮",f:"family",role:"赤焰军主帅",desc:"晋阳长公主之夫，林殊之父，大梁军神，赤焰案中殉国。"},
+];
+const relColor={family:"#f87171",love:"#f472b6",friend:"#34d399",allegiance:"#60a5fa",rivalry:"#fb923c",conspirator:"#a78bfa"};
+const relName={family:"血缘",love:"婚约",friend:"友情",allegiance:"阵营",rivalry:"对立",conspirator:"同谋"};
+const links=[
+  {s:"sux",t:"feiliu",r:"allegiance",label:"主仆 · 守护"},
+  {s:"sux",t:"linchen",r:"friend",label:"挚友"},
+  {s:"sux",t:"mengzhi",r:"friend",label:"挚友"},
+  {s:"sux",t:"nihuang",r:"love",label:"青梅竹马 · 未婚夫妻"},
+  {s:"sux",t:"weizheng",r:"allegiance",label:"旧部袍泽"},
+  {s:"sux",t:"ligang",r:"allegiance",label:"主从"},
+  {s:"sux",t:"zhenping",r:"allegiance",label:"主从"},
+  {s:"sux",t:"gongyu",r:"allegiance",label:"暗线同盟"},
+  {s:"mengzhi",t:"jingwang",r:"allegiance",label:"暗中支持"},
+  {s:"mengzhi",t:"linxie",r:"allegiance",label:"旧主部将"},
+  {s:"weizheng",t:"linxie",r:"allegiance",label:"旧主部将"},
+  {s:"liangdi",t:"jingwang",r:"family",label:"父子（疏远）"},
+  {s:"liangdi",t:"taizi",r:"family",label:"父子"},
+  {s:"liangdi",t:"yuwang",r:"family",label:"父子（养）"},
+  {s:"liangdi",t:"jiwang",r:"family",label:"兄弟"},
+  {s:"liangdi",t:"jingyang",r:"family",label:"兄妹"},
+  {s:"liangdi",t:"jingfei",r:"family",label:"夫妻"},
+  {s:"liangdi",t:"yueguifei",r:"family",label:"宠妃"},
+  {s:"jingfei",t:"jingwang",r:"family",label:"母子"},
+  {s:"yueguifei",t:"taizi",r:"family",label:"母子"},
+  {s:"liyang",t:"xieyu",r:"family",label:"夫妻"},
+  {s:"liyang",t:"jingrui",r:"family",label:"母子"},
+  {s:"jingyang",t:"linxie",r:"family",label:"夫妻"},
+  {s:"jingyang",t:"sux",r:"family",label:"母子"},
+  {s:"linxie",t:"sux",r:"family",label:"父子"},
+  {s:"tingsheng",t:"jingwang",r:"family",label:"养父子"},
+  {s:"taizi",t:"xieyu",r:"allegiance",label:"翁婿同盟"},
+  {s:"yuwang",t:"qinbanruo",r:"allegiance",label:"谋士同盟"},
+  {s:"xieyu",t:"xiajiang",r:"conspirator",label:"同谋（赤焰案）"},
+  {s:"xiajiang",t:"xiadong",r:"allegiance",label:"同门"},
+  {s:"yuwang",t:"taizi",r:"rivalry",label:"政敌"},
+  {s:"jingwang",t:"yuwang",r:"rivalry",label:"政敌"},
+  {s:"jingwang",t:"taizi",r:"rivalry",label:"政敌"},
+  {s:"xiajiang",t:"sux",r:"rivalry",label:"死敌"},
+  {s:"xiajiang",t:"jingwang",r:"rivalry",label:"对立"},
+  {s:"yuyujin",t:"jingrui",r:"friend",label:"知己好友"},
+  {s:"yuyujin",t:"yanhou",r:"family",label:"父子"},
+  {s:"yanhou",t:"linxie",r:"friend",label:"至交"},
+  {s:"jingrui",t:"zhuoqingyao",r:"family",label:"姐夫内弟"},
+  {s:"xieyu",t:"jingrui",r:"family",label:"父子"},
+  {s:"sux",t:"yuyujin",r:"friend",label:"结交相助"},
+  {s:"sux",t:"jingrui",r:"friend",label:"结交"},
+  // —— 补全的次级关系 ——
+  {s:"linchen",t:"feiliu",r:"friend",label:"阁中玩伴"},
+  {s:"linchen",t:"jingrui",r:"friend",label:"朋友"},
+  {s:"linchen",t:"yuyujin",r:"friend",label:"朋友"},
+  {s:"linchen",t:"mengzhi",r:"friend",label:"旧识挚友"},
+  {s:"nihuang",t:"jingwang",r:"allegiance",label:"盟友 · 共扶靖王"},
+  {s:"nihuang",t:"mengzhi",r:"friend",label:"林殊旧友"},
+  {s:"feiliu",t:"mengzhi",r:"friend",label:"蒙大叔逗飞流"},
+  {s:"ligang",t:"zhenping",r:"allegiance",label:"同属江左盟"},
+  {s:"jiwang",t:"jingwang",r:"family",label:"叔侄"},
+  {s:"tingsheng",t:"jingrui",r:"friend",label:"好友"},
+  {s:"qinbanruo",t:"gongyu",r:"rivalry",label:"暗线对手 · 红袖招 vs 妙音坊"},
+  {s:"xiadong",t:"sux",r:"rivalry",label:"一度侦办苏"},
+  {s:"xiadong",t:"mengzhi",r:"allegiance",label:"同朝武将"},
+  {s:"zhuoqingyao",t:"liyang",r:"family",label:"岳母"},
+];
+
+// ===================== 初始化 =====================
+const SVGNS="http://www.w3.org/2000/svg";
+const graph=document.getElementById("graph");
+const svg=document.createElementNS(SVGNS,"svg");
+graph.appendChild(svg);
+const g=document.createElementNS(SVGNS,"g");
+svg.appendChild(g);
+
+const nodeById=new Map(nodes.map(n=>[n.id,n]));
+const degree={}; links.forEach(l=>{degree[l.s]=(degree[l.s]||0)+1;degree[l.t]=(degree[l.t]||0)+1;});
+const adj=new Map(nodes.map(n=>[n.id,new Set()]));
+links.forEach(l=>{adj.get(l.s).add(l.t);adj.get(l.t).add(l.s);});
+function radius(d){return 9+Math.sqrt(degree[d.id]||1)*4.2;}
+
+// 视口与坐标
+let W=graph.clientWidth, H=graph.clientHeight;
+let view={x:0,y:0,k:1};
+nodes.forEach(n=>{n.x=W/2+(Math.random()-0.5)*360;n.y=H/2+(Math.random()-0.5)*360;n.vx=0;n.vy=0;n.curScale=1;});
+links.forEach(l=>{l.s=nodes.find(n=>n.id===l.s);l.t=nodes.find(n=>n.id===l.t);});
+
+// 构建元素
+const linkGroup=document.createElementNS(SVGNS,"g"); g.appendChild(linkGroup);
+const linkElsArr=links.map(l=>{
+  const ln=document.createElementNS(SVGNS,"line");
+  ln.setAttribute("class","link");
+  ln.setAttribute("stroke",relColor[l.r]);
+  ln.setAttribute("stroke-width",(1.4+(relName[l.r]==="血缘"?0.6:0)).toFixed(2));
+  linkGroup.appendChild(ln); return ln;
+});
+// 头像加载：优先 avatars/<id>.{jpg,png,webp}，全失败则回退彩色圆+姓氏字
+const defs=document.createElementNS(SVGNS,"defs"); svg.insertBefore(defs,g);
+const AV_EXT=["jpg","png","webp","jpeg"];
+function loadAvatar(img,id){
+  let i=0;
+  const tryNext=()=>{
+    if(i>=AV_EXT.length){ img.style.display="none"; return; }
+    const url=`avatars/${id}.${AV_EXT[i++]}`;
+    img.setAttribute("href",url);
+    img.setAttributeNS("http://www.w3.org/1999/xlink","href",url);
+  };
+  img.addEventListener("error",tryNext);
+  tryNext();
+}
+const nodeGroup=document.createElementNS(SVGNS,"g"); g.appendChild(nodeGroup);
+const nodeEls=nodes.map(n=>{
+  const r=radius(n);
+  const grp=document.createElementNS(SVGNS,"g"); grp.setAttribute("class","node");
+  const c=document.createElementNS(SVGNS,"circle");
+  c.setAttribute("class","base"); c.setAttribute("r",r); c.setAttribute("fill",factions[n.f].color);
+  // 圆形裁剪
+  const cp=document.createElementNS(SVGNS,"clipPath"); cp.id="clip-"+n.id; cp.setAttribute("clipPathUnits","objectBoundingBox");
+  const cc=document.createElementNS(SVGNS,"circle"); cc.setAttribute("cx","0.5"); cc.setAttribute("cy","0.5"); cc.setAttribute("r","0.5"); cp.appendChild(cc); defs.appendChild(cp);
+  // 姓氏字兜底
+  const mono=document.createElementNS(SVGNS,"text");
+  mono.setAttribute("class","mono"); mono.setAttribute("text-anchor","middle"); mono.setAttribute("dy","0.35em");
+  mono.setAttribute("font-size",(r*0.95).toFixed(1)); mono.textContent=n.name.charAt(0);
+  // 头像
+  const img=document.createElementNS(SVGNS,"image");
+  img.setAttribute("x",(-r).toFixed(1)); img.setAttribute("y",(-r).toFixed(1));
+  img.setAttribute("width",(2*r).toFixed(1)); img.setAttribute("height",(2*r).toFixed(1));
+  img.setAttribute("clip-path",`url(#clip-${n.id})`);
+  img.setAttribute("preserveAspectRatio","xMidYMid slice");
+  loadAvatar(img,n.id);
+  // 阵营色外圈（即使使用头像也保留一圈阵营色描边）
+  const ring=document.createElementNS(SVGNS,"circle");
+  ring.setAttribute("class","ring"); ring.setAttribute("r",r);
+  ring.setAttribute("fill","none"); ring.setAttribute("stroke",factions[n.f].color);
+  ring.setAttribute("stroke-width","4");
+  // 名字
+  const t=document.createElementNS(SVGNS,"text");
+  t.setAttribute("dy",(r+13).toFixed(1)); t.textContent=n.name;
+  grp.appendChild(c); grp.appendChild(mono); grp.appendChild(img); grp.appendChild(ring); grp.appendChild(t);
+  nodeGroup.appendChild(grp);
+  return grp;
+});
+
+// ===================== 物理模拟 =====================
+const REP=3200, SPRING=0.018, REST=96, CENTER=0.006, DAMP=0.86, VMAX=40;
+let running=false, dragNode=null;
+function energy(){
+  let e=0; for(const n of nodes) e+=n.vx*n.vx+n.vy*n.vy; return e;
+}
+function tick(){
+  if(!running) return;
+  // 斥力
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+    const a=nodes[i],b=nodes[j];
+    let dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy; if(d2<1)d2=1;
+    const d=Math.sqrt(d2), f=REP/d2;
+    const fx=f*dx/d, fy=f*dy/d;
+    a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+  }
+  // 弹簧
+  for(const l of links){
+    let dx=l.t.x-l.s.x, dy=l.t.y-l.s.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+    const diff=(d-REST)/d, f=SPRING*diff;
+    const fx=f*dx, fy=f*dy;
+    l.s.vx+=fx; l.s.vy+=fy; l.t.vx-=fx; l.t.vy-=fy;
+  }
+  // 向心力 + 积分
+  for(const n of nodes){
+    if(n===dragNode){n.vx=0;n.vy=0;continue;}
+    n.vx+= (W/2-n.x)*CENTER; n.vy+=(H/2-n.y)*CENTER;
+    n.vx*=DAMP; n.vy*=DAMP;
+    if(n.vx>VMAX)n.vx=VMAX; if(n.vx<-VMAX)n.vx=-VMAX;
+    if(n.vy>VMAX)n.vy=VMAX; if(n.vy<-VMAX)n.vy=-VMAX;
+    n.x+=n.vx; n.y+=n.vy;
+  }
+  render();
+  if(energy()<0.6 && !dragNode) running=false;
+  else requestAnimationFrame(tick);
+}
+function start(){ if(!running){running=true; requestAnimationFrame(tick);} }
+function render(){
+  for(let i=0;i<links.length;i++){
+    const l=links[i],e=linkElsArr[i];
+    e.setAttribute("x1",l.s.x); e.setAttribute("y1",l.s.y);
+    e.setAttribute("x2",l.t.x); e.setAttribute("y2",l.t.y);
+  }
+  let moving=false;
+  for(let i=0;i<nodes.length;i++){
+    const n=nodes[i];
+    const target=(n.id===hoverId)?1.3:1;
+    n.curScale += (target-n.curScale)*0.2;   // 缓动插值
+    if(Math.abs(target-n.curScale)<0.003){ n.curScale=target; } else { moving=true; }
+    nodeEls[i].setAttribute("transform",`translate(${n.x},${n.y}) scale(${n.curScale})`);
+  }
+  if(moving && !running) requestAnimationFrame(render);   // 缩放未稳时续帧（物理静止也动画）
+}
+function applyView(){ g.setAttribute("transform",`translate(${view.x},${view.y}) scale(${view.k})`); }
+
+// ===================== 交互 =====================
+function screenToWorld(px,py){ return {x:(px-view.x)/view.k, y:(py-view.y)/view.k}; }
+function localPt(e){ const r=svg.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+
+let hoverId=null;
+nodeEls.forEach((el,i)=>{
+  const n=nodes[i];
+  el.addEventListener("pointerenter",()=>{ hoverId=n.id; highlight(n.id); render(); });
+  el.addEventListener("pointerleave",()=>{ hoverId=null; if(!selected) highlight(null); render(); });
+  el.addEventListener("pointerdown",e=>{
+    e.stopPropagation();
+    dragNode=n; selected=n.id;
+    el.setPointerCapture(e.pointerId);
+    const p=localPt(e), w=screenToWorld(p.x,p.y); n.x=w.x; n.y=w.y;
+    start();
+  });
+  el.addEventListener("pointermove",e=>{
+    if(dragNode!==n) return;
+    const p=localPt(e), w=screenToWorld(p.x,p.y); n.x=w.x; n.y=w.y; start();
+  });
+  el.addEventListener("pointerup",e=>{
+    if(dragNode===n){ dragNode=null; const p=localPt(e),w=screenToWorld(p.x,p.y); n.x=w.x; n.y=w.y; }
+  });
+  el.addEventListener("click",e=>{ e.stopPropagation(); highlight(n.id); showDetail(n); });
+});
+
+// 背景平移 / 缩放（支持鼠标滚轮 + 双指捏合）
+const pointers=new Map();
+let panning=false, panStart=null, pinch=null;
+function twoPts(){
+  const a=[...pointers.values()];
+  return {d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),
+          mx:(a[0].x+a[1].x)/2, my:(a[0].y+a[1].y)/2};
+}
+svg.addEventListener("pointerdown",e=>{
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  svg.setPointerCapture(e.pointerId);
+  if(pointers.size===2){
+    const t=twoPts();
+    pinch={d0:t.d,mx0:t.mx,my0:t.my,k0:view.k,x0:view.x,y0:view.y};
+    panning=false; svg.classList.remove("pan");
+  } else if(pointers.size===1){
+    panning=true; svg.classList.add("pan");
+    const p=localPt(e); panStart={x:p.x,y:p.y,vx:view.x,vy:view.y};
+  }
+});
+svg.addEventListener("pointermove",e=>{
+  if(!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2 && pinch){
+    const t=twoPts();
+    const nk=Math.min(3,Math.max(0.3, pinch.k0*t.d/pinch.d0));
+    view.k=nk;
+    view.x=t.mx-(pinch.mx0-pinch.x0)*(nk/pinch.k0);
+    view.y=t.my-(pinch.my0-pinch.y0)*(nk/pinch.k0);
+    applyView();
+  } else if(panning){
+    const p=localPt(e); view.x=panStart.vx+(p.x-panStart.x); view.y=panStart.vy+(p.y-panStart.y);
+    applyView();
+  }
+});
+function endPointer(e){
+  pointers.delete(e.pointerId);
+  if(pointers.size<2) pinch=null;
+  if(pointers.size===0){ panning=false; svg.classList.remove("pan"); }
+}
+svg.addEventListener("pointerup",endPointer);
+svg.addEventListener("pointercancel",endPointer);
+svg.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const p=localPt(e), f=e.deltaY<0?1.12:1/1.12;
+  const nk=Math.min(3,Math.max(0.3,view.k*f));
+  view.x=p.x-(p.x-view.x)*(nk/view.k);
+  view.y=p.y-(p.y-view.y)*(nk/view.k);
+  view.k=nk; applyView();
+},{passive:false});
+svg.addEventListener("click",()=>{ if(!selected) return; selected=null; highlight(null); resetView(); });
+
+// 高亮
+let selected=null;
+function highlight(id){
+  if(!id){ nodeEls.forEach(el=>el.classList.remove("faded"));
+    linkElsArr.forEach(el=>el.classList.remove("faded-link")); return; }
+  nodeEls.forEach((el,i)=>{ el.classList.toggle("faded", nodes[i].id!==id && !adj.get(id).has(nodes[i].id)); });
+  linkElsArr.forEach((el,i)=>{ el.classList.toggle("faded-link", links[i].s.id!==id && links[i].t.id!==id); });
+}
+
+// 详情
+function showDetail(d){
+  const rels=links.filter(l=>l.s.id===d.id||l.t.id===d.id).map(l=>{
+    const o=l.s.id===d.id?l.t:l.s;
+    return `<div class="rel"><span class="rt" style="background:${relColor[l.r]}">${relName[l.r]}</span><b>${o.name}</b> · ${l.label}</div>`;
+  });
+  document.getElementById("sideContent").innerHTML=`
+    <h2>${d.name}</h2>
+    <span class="tag" style="background:${factions[d.f].color}">${factions[d.f].name}</span>
+    <div class="role">${d.role}</div>
+    <div class="desc">${d.desc}</div>
+    <div class="rels"><h3>关系（${rels.length}）</h3>${rels.join("")}</div>
+    <div style="margin-top:14px"><a class="reset" onclick="resetView()">← 返回总览</a></div>`;
+  document.getElementById("side").classList.add("open");
+}
+function resetView(){
+  selected=null; highlight(null);
+  document.getElementById("side").classList.remove("open");
+  document.getElementById("sideContent").innerHTML=
+    '<div class="empty">点击任意节点查看人物简介与关系。<br><br>线条颜色含义：<br>🔴 血缘亲情　💗 爱情婚约<br>🟢 友情挚交　🔵 主从阵营<br>🟠 对立政敌　🟣 同谋勾结</div>';
+}
+window.resetView=resetView;
+
+// 搜索
+document.getElementById("q").addEventListener("input",function(){
+  const v=this.value.trim();
+  if(!v){ highlight(selected); nodeEls.forEach(el=>el.classList.remove("faded")); return; }
+  nodeEls.forEach((el,i)=>{ el.classList.toggle("faded", !(nodes[i].name.includes(v)||nodes[i].role.includes(v))); });
+  linkElsArr.forEach((el,i)=>{ el.classList.toggle("faded-link", !(nodeById.get(links[i].s.id).name.includes(v)||nodeById.get(links[i].t.id).name.includes(v))); });
+});
+
+// 图例
+let lg='<div class="grp"><div class="ttl">阵营</div>';
+for(const k in factions) lg+=`<div class="row"><span class="dot" style="background:${factions[k].color}"></span>${factions[k].name}</div>`;
+lg+='</div><div class="grp"><div class="ttl">关系</div>';
+for(const k in relColor) lg+=`<div class="row"><span class="bar" style="background:${relColor[k]}"></span>${relName[k]}</div>`;
+document.getElementById("legend").innerHTML=lg;
+
+// 自适应
+window.addEventListener("resize",()=>{
+  const nW=graph.clientWidth, nH=graph.clientHeight;
+  const sx=nW/W, sy=nH/H;
+  nodes.forEach(n=>{n.x*=sx;n.y*=sy;});
+  W=nW; H=nH; start();
+});
+
+// 启动
+applyView(); render(); start();
+</script>
+</body>
+</html>
