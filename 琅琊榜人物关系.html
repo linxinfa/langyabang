@@ -39,6 +39,9 @@
     text-anchor:middle;user-select:none;}
   .faded{opacity:.1 !important;}
   .faded-link{opacity:.04 !important;}
+  .link-label{font-size:10px;fill:#fff;font-weight:400;pointer-events:none;user-select:none;
+    paint-order:stroke;stroke:#0e1116;stroke-width:3px;stroke-linejoin:round;
+    text-anchor:middle;opacity:0;transition:opacity .15s;}
   #side{width:320px;flex:none;border-left:1px solid var(--line);
     background:var(--panel);padding:18px;overflow-y:auto;}
   #side h2{margin:0 0 4px;font-size:18px;}
@@ -302,6 +305,14 @@ const nodeEls=nodes.map(n=>{
   nodeGroup.appendChild(grp);
   return grp;
 });
+// 连线文字标签（默认隐藏，按住/悬停节点时显示）
+const labelGroup=document.createElementNS(SVGNS,"g"); g.appendChild(labelGroup);
+const linkLabelEls=links.map(l=>{
+  const tx=document.createElementNS(SVGNS,"text");
+  tx.setAttribute("class","link-label");
+  tx.textContent=l.label;
+  labelGroup.appendChild(tx); return tx;
+});
 
 // ===================== 物理模拟 =====================
 const REP=3200, SPRING=0.018, REST=96, CENTER=0.006, DAMP=0.86, VMAX=40;
@@ -322,7 +333,9 @@ function tick(){
   // 弹簧
   for(const l of links){
     let dx=l.t.x-l.s.x, dy=l.t.y-l.s.y, d=Math.sqrt(dx*dx+dy*dy)||1;
-    const diff=(d-REST)/d, f=SPRING*diff;
+    const isActive = labelId && (l.s.id===labelId || l.t.id===labelId);
+    const rest = isActive ? REST*2.1 : REST;          // 按住节点时，相连节点散得更开，给连线文字留空间
+    const diff=(d-rest)/d, f=SPRING*(isActive?2.4:1)*diff;
     const fx=f*dx, fy=f*dy;
     l.s.vx+=fx; l.s.vy+=fy; l.t.vx-=fx; l.t.vy-=fy;
   }
@@ -336,7 +349,7 @@ function tick(){
     n.x+=n.vx; n.y+=n.vy;
   }
   render();
-  if(energy()<0.6 && !dragNode) running=false;
+  if(energy()<0.6 && !dragNode && !labelId) running=false;
   else requestAnimationFrame(tick);
 }
 function start(){ if(!running){running=true; requestAnimationFrame(tick);} }
@@ -345,6 +358,15 @@ function render(){
     const l=links[i],e=linkElsArr[i];
     e.setAttribute("x1",l.s.x); e.setAttribute("y1",l.s.y);
     e.setAttribute("x2",l.t.x); e.setAttribute("y2",l.t.y);
+  }
+  // 连线关系文字：仅显示当前高亮节点相连的几条
+  for(let i=0;i<links.length;i++){
+    const l=links[i], tx=linkLabelEls[i];
+    if(labelId && (l.s.id===labelId || l.t.id===labelId)){
+      tx.setAttribute("x",((l.s.x+l.t.x)/2).toFixed(1));
+      tx.setAttribute("y",((l.s.y+l.t.y)/2+4).toFixed(1));
+      tx.style.opacity="1";
+    } else { tx.style.opacity="0"; }
   }
   let moving=false;
   for(let i=0;i<nodes.length;i++){
@@ -365,11 +387,11 @@ function localPt(e){ const r=svg.getBoundingClientRect(); return {x:e.clientX-r.
 let hoverId=null;
 nodeEls.forEach((el,i)=>{
   const n=nodes[i];
-  el.addEventListener("pointerenter",()=>{ hoverId=n.id; highlight(n.id); render(); });
+  el.addEventListener("pointerenter",()=>{ hoverId=n.id; render(); });
   el.addEventListener("pointerleave",()=>{ hoverId=null; if(!selected) highlight(null); render(); });
   el.addEventListener("pointerdown",e=>{
     e.stopPropagation();
-    dragNode=n; selected=n.id;
+    dragNode=n; selected=n.id; highlight(n.id);
     el.setPointerCapture(e.pointerId);
     const p=localPt(e), w=screenToWorld(p.x,p.y); n.x=w.x; n.y=w.y;
     start();
@@ -393,6 +415,7 @@ function twoPts(){
           mx:(a[0].x+a[1].x)/2, my:(a[0].y+a[1].y)/2};
 }
 svg.addEventListener("pointerdown",e=>{
+  resetView();   // 点击空白处：恢复（收起散开、隐藏连线文字、关闭详情）
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   svg.setPointerCapture(e.pointerId);
   if(pointers.size===2){
@@ -437,12 +460,14 @@ svg.addEventListener("wheel",e=>{
 svg.addEventListener("click",()=>{ if(!selected) return; selected=null; highlight(null); resetView(); });
 
 // 高亮
-let selected=null;
+let selected=null, labelId=null;
 function highlight(id){
+  labelId=id;
   if(!id){ nodeEls.forEach(el=>el.classList.remove("faded"));
-    linkElsArr.forEach(el=>el.classList.remove("faded-link")); return; }
+    linkElsArr.forEach(el=>el.classList.remove("faded-link")); render(); return; }
   nodeEls.forEach((el,i)=>{ el.classList.toggle("faded", nodes[i].id!==id && !adj.get(id).has(nodes[i].id)); });
   linkElsArr.forEach((el,i)=>{ el.classList.toggle("faded-link", links[i].s.id!==id && links[i].t.id!==id); });
+  render();
 }
 
 // 详情
@@ -461,7 +486,7 @@ function showDetail(d){
   document.getElementById("side").classList.add("open");
 }
 function resetView(){
-  selected=null; highlight(null);
+  selected=null; highlight(null); start();   // start() 让模拟继续跑，把散开的节点拉回紧凑布局
   document.getElementById("side").classList.remove("open");
   document.getElementById("sideContent").innerHTML=
     '<div class="empty">点击任意节点查看人物简介与关系。<br><br>线条颜色含义：<br>🔴 血缘亲情　💗 爱情婚约<br>🟢 友情挚交　🔵 主从阵营<br>🟠 对立政敌　🟣 同谋勾结</div>';
