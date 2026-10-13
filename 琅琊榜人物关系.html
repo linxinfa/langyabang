@@ -42,8 +42,18 @@
   .link-label{font-size:10px;fill:#fff;font-weight:400;pointer-events:none;user-select:none;
     paint-order:stroke;stroke:#0e1116;stroke-width:3px;stroke-linejoin:round;
     text-anchor:middle;opacity:0;transition:opacity .15s;}
-  #side{width:320px;flex:none;border-left:1px solid var(--line);
-    background:var(--panel);padding:18px;overflow-y:auto;}
+  #side{width:260px;flex:none;border-left:1px solid var(--line);position:relative;
+    background:var(--panel);padding:18px;overflow-y:auto;
+    transition:width .25s ease,padding .25s ease;}
+  #side.collapsed{width:0;padding:0;border-left:none;overflow:hidden;}
+  #sideToggle{position:absolute;top:12px;right:12px;z-index:8;width:30px;height:30px;
+    border-radius:8px;border:1px solid var(--line);background:rgba(22,27,34,.92);
+    color:var(--text);cursor:pointer;font-size:15px;line-height:1;display:flex;
+    align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+  #sideReopen{position:absolute;top:12px;right:12px;z-index:8;width:30px;height:30px;
+    border-radius:8px;border:1px solid var(--line);background:rgba(22,27,34,.92);
+    color:var(--text);cursor:pointer;font-size:15px;line-height:1;display:none;
+    align-items:center;justify-content:center;backdrop-filter:blur(4px);}
   #side h2{margin:0 0 4px;font-size:18px;}
   #side .tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:20px;
     margin-bottom:10px;color:#0e1116;font-weight:600;}
@@ -64,6 +74,14 @@
   .legend .row{display:flex;align-items:center;gap:7px;margin:3px 0;}
   .legend .dot{width:11px;height:11px;border-radius:50%;flex:none;}
   .legend .bar{width:18px;height:3px;border-radius:2px;flex:none;}
+  .legend .lg-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+  .legend .lg-title{color:var(--text);font-weight:600;letter-spacing:1px;}
+  #lgToggle{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);
+    background:rgba(13,17,23,.6);color:var(--text);cursor:pointer;font-size:11px;line-height:1;
+    display:flex;align-items:center;justify-content:center;}
+  .legend.collapsed{padding:8px 10px;}
+  .legend.collapsed .lg-head{margin-bottom:0;}
+  .legend.collapsed #lgBody{display:none;}
   .hint{position:absolute;right:14px;top:14px;color:var(--muted);font-size:11.5px;
     background:rgba(22,27,34,.85);border:1px solid var(--line);border-radius:8px;padding:6px 10px;}
   a.reset{color:var(--su);cursor:pointer;font-size:12px;text-decoration:underline;}
@@ -87,6 +105,8 @@
     .legend{top:12px;left:12px;bottom:auto;max-width:150px;padding:8px 10px;font-size:11px;}
     .legend .row{margin:2px 0;}
     .hint{display:none;}
+    #sideToggle{display:none;}
+    #sideReopen{display:none;}
     #side h2{font-size:17px;}
   }
 </style>
@@ -101,13 +121,18 @@
   <div id="main">
     <div id="graph">
       <div class="hint">滚轮缩放 · 拖动平移 · 拖拽节点</div>
-      <div class="legend" id="legend"></div>
+      <div class="legend" id="legend">
+        <div class="lg-head"><span class="lg-title">阵营 / 关系</span><button id="lgToggle" type="button" onclick="toggleLegend()" aria-label="收起图例">▾</button></div>
+        <div id="lgBody"></div>
+      </div>
     </div>
     <aside id="side">
+      <button id="sideToggle" type="button" onclick="toggleSide()" aria-label="收起侧栏">›</button>
       <div id="sheetHandle" onclick="resetView()">▾</div>
       <div id="sideContent"><div class="empty">点击任意节点查看人物简介与关系。<br><br>
       线条颜色含义：<br>🔴 血缘亲情　💗 爱情婚约<br>🟢 友情挚交　🔵 主从阵营<br>🟠 对立政敌　🟣 同谋勾结</div></div>
     </aside>
+    <button id="sideReopen" type="button" onclick="toggleSide()" aria-label="展开侧栏">‹</button>
   </div>
 </div>
 
@@ -484,6 +509,8 @@ function showDetail(d){
     <div class="rels"><h3>关系（${rels.length}）</h3>${rels.join("")}</div>
     <div style="margin-top:14px"><a class="reset" onclick="resetView()">← 返回总览</a></div>`;
   document.getElementById("side").classList.add("open");
+  const s=document.getElementById("side");
+  if(s.classList.contains("collapsed")){ s.classList.remove("collapsed"); document.getElementById("sideToggle").textContent="›"; document.getElementById("sideReopen").style.display="none"; document.querySelector(".hint").style.display=""; }
 }
 function resetView(){
   selected=null; highlight(null); start();   // start() 让模拟继续跑，把散开的节点拉回紧凑布局
@@ -506,9 +533,21 @@ let lg='<div class="grp"><div class="ttl">阵营</div>';
 for(const k in factions) lg+=`<div class="row"><span class="dot" style="background:${factions[k].color}"></span>${factions[k].name}</div>`;
 lg+='</div><div class="grp"><div class="ttl">关系</div>';
 for(const k in relColor) lg+=`<div class="row"><span class="bar" style="background:${relColor[k]}"></span>${relName[k]}</div>`;
-document.getElementById("legend").innerHTML=lg;
+document.getElementById("lgBody").innerHTML=lg;
 
-// 自适应
+// 侧栏 / 图例 收起
+function toggleSide(){
+  const s=document.getElementById("side"), collapsed=s.classList.toggle("collapsed");
+  document.getElementById("sideToggle").textContent = collapsed ? "‹" : "›";
+  document.getElementById("sideReopen").style.display = collapsed ? "flex" : "none";
+  document.querySelector(".hint").style.display = collapsed ? "none" : "";
+}
+function toggleLegend(){
+  const lg=document.getElementById("legend"); lg.classList.toggle("collapsed");
+  document.getElementById("lgToggle").textContent = lg.classList.contains("collapsed") ? "▸" : "▾";
+}
+window.toggleSide=toggleSide; window.toggleLegend=toggleLegend;
+
 window.addEventListener("resize",()=>{
   const nW=graph.clientWidth, nH=graph.clientHeight;
   const sx=nW/W, sy=nH/H;
