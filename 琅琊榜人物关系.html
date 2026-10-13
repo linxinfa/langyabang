@@ -509,8 +509,6 @@ function showDetail(d){
     <div class="rels"><h3>关系（${rels.length}）</h3>${rels.join("")}</div>
     <div style="margin-top:14px"><a class="reset" onclick="resetView()">← 返回总览</a></div>`;
   document.getElementById("side").classList.add("open");
-  const s=document.getElementById("side");
-  if(s.classList.contains("collapsed")){ s.classList.remove("collapsed"); document.getElementById("sideToggle").textContent="›"; document.getElementById("sideReopen").style.display="none"; document.querySelector(".hint").style.display=""; }
 }
 function resetView(){
   selected=null; highlight(null); start();   // start() 让模拟继续跑，把散开的节点拉回紧凑布局
